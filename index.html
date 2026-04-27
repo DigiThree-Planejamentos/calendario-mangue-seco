@@ -215,6 +215,7 @@
 
   @media print{.toolbar,.add-post-btn,.card-actions,.add-thumb-btn{display:none!important;}body{background:#fff;}.post-card{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -239,6 +240,7 @@
   <span class="toolbar-label">Ações:</span>
   <button class="btn btn-cyan" onclick="window.print()">🖨 Imprimir</button>
   <button class="btn btn-ghost" onclick="exportHTML()">💾 Salvar HTML</button>
+  <button class="btn btn-cyan" onclick="saveSiteData()">🌐 Salvar no site</button>
   <button class="btn btn-ghost" id="editModeBtn" onclick="toggleEditMode()">✏️ Modo Edição</button>
   <button class="btn btn-ghost" onclick="openDatasModal()">🗓 Datas Comemorativas</button>
   <div class="month-nav" id="monthNav"><button class="month-btn" id="mnav0">Jan</button><button class="month-btn" id="mnav1">Fev</button><button class="month-btn" id="mnav2">Mar</button><button class="month-btn active" id="mnav3">Abr</button><button class="month-btn" id="mnav4">Mai</button><button class="month-btn" id="mnav5">Jun</button><button class="month-btn" id="mnav6">Jul</button><button class="month-btn" id="mnav7">Ago</button><button class="month-btn" id="mnav8">Set</button><button class="month-btn" id="mnav9">Out</button><button class="month-btn" id="mnav10">Nov</button><button class="month-btn" id="mnav11">Dez</button></div>
@@ -1438,116 +1440,161 @@ document.querySelectorAll('.month-block').forEach(el=>observer.observe(el));
 
 
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const SUPABASE_URL = 'https://aprneolltdkizvfakuus.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_tmWBQV8mZnk7FBvq1iZ3pA_lprGokcu';
+/* =========================
+   SUPABASE SAVE SYSTEM
+   Mangue Seco Angra
+========================= */
+(function(){
+  const SUPABASE_URL = 'https://aprneolltdkizvfakuus.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_tmWBQV8mZnk7FBvq1iZ3pA_lprGokcu';
 
-const CALENDAR_ID = "mangue-seco-2026";
-const CALENDAR_NAME = "Mangue Seco";
+  window.CALENDAR_ID = window.CALENDAR_ID || "mangue-seco-2026";
+  window.CALENDAR_NAME = window.CALENDAR_NAME || "Mangue Seco Angra";
 
-const supabaseClient = window.supabase?.createClient
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+  const supabaseClient =
+    window.supabase && typeof window.supabase.createClient === 'function'
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
 
-function getSiteData(){
-  return {
-    html: document.getElementById('monthsContainer')?.innerHTML || '',
-    header: {
-      client: document.getElementById('hdrClient')?.innerText || '',
-      year: document.getElementById('hdrYear')?.innerText || '',
-      sub: document.getElementById('hdrSub')?.innerText || ''
-    }
-  };
-}
-
-function applySiteData(data){
-  if(data?.html){
-    const el = document.getElementById('monthsContainer');
-    if(el) el.innerHTML = data.html;
+  function getSiteData(){
+    return {
+      html: document.getElementById('monthsContainer')?.innerHTML || '',
+      header: {
+        client: document.getElementById('hdrClient')?.innerText || '',
+        year: document.getElementById('hdrYear')?.innerText || '',
+        sub: document.getElementById('hdrSub')?.innerText || ''
+      },
+      savedAt: new Date().toISOString()
+    };
   }
 
-  if(data?.header){
-    if(document.getElementById('hdrClient')){
-      document.getElementById('hdrClient').innerText = data.header.client || '';
+  function applySiteData(data){
+    if(!data) return;
+
+    if(data.html){
+      const el = document.getElementById('monthsContainer');
+      if(el) el.innerHTML = data.html;
     }
-    if(document.getElementById('hdrYear')){
-      document.getElementById('hdrYear').innerText = data.header.year || '';
+
+    if(data.header){
+      const client = document.getElementById('hdrClient');
+      const year = document.getElementById('hdrYear');
+      const sub = document.getElementById('hdrSub');
+
+      if(client) client.innerText = data.header.client || '';
+      if(year) year.innerText = data.header.year || '';
+      if(sub) sub.innerText = data.header.sub || '';
     }
-    if(document.getElementById('hdrSub')){
-      document.getElementById('hdrSub').innerText = data.header.sub || '';
-    }
+
+    if(typeof renderAll === 'function') renderAll();
+    if(typeof updateStats === 'function') updateStats();
+    if(typeof bindEvents === 'function') bindEvents();
   }
 
-  if(typeof renderAll === 'function') renderAll();
-  if(typeof bindEvents === 'function') bindEvents();
-}
-
-function saveLocal(data){
-  localStorage.setItem(CALENDAR_ID, JSON.stringify(data));
-}
-
-function loadLocal(){
-  const raw = localStorage.getItem(CALENDAR_ID);
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-async function saveSiteData(){
-  const payload = getSiteData();
-  saveLocal(payload);
-
-  if(!supabaseClient){
-    alert('Salvo localmente');
-    return;
-  }
-
-  const { error } = await supabaseClient
-    .from('calendarios')
-    .upsert({
-      id: CALENDAR_ID,
-      nome: CALENDAR_NAME,
-      dados: payload
-    }, { onConflict: 'id' });
-
-  if(error){
-    console.error(error);
-    alert('Erro ao salvar');
-    return;
-  }
-
-  alert('Salvo no site!');
-}
-
-async function loadSiteData(){
-  if(supabaseClient){
+  function saveLocalBackup(data){
     try{
-      const { data } = await supabaseClient
-        .from('calendarios')
-        .select('dados')
-        .eq('id', CALENDAR_ID)
-        .maybeSingle();
+      localStorage.setItem(window.CALENDAR_ID, JSON.stringify(data));
+    }catch(e){
+      console.warn('Erro ao salvar backup local:', e);
+    }
+  }
 
-      if(data?.dados){
-        applySiteData(data.dados);
+  function loadLocalBackup(){
+    try{
+      const raw = localStorage.getItem(window.CALENDAR_ID);
+      if(!raw) return null;
+      return JSON.parse(raw);
+    }catch(e){
+      console.warn('Erro ao carregar backup local:', e);
+      return null;
+    }
+  }
+
+  async function saveSiteData(){
+    const payload = getSiteData();
+    saveLocalBackup(payload);
+
+    const btn = document.querySelector('button[onclick="saveSiteData()"], button[onclick="saveSitedata()"]');
+    const oldText = btn ? btn.innerText : '';
+
+    if(btn) {
+      btn.innerText = '⏳ Salvando...';
+      btn.disabled = true;
+    }
+
+    if(!supabaseClient){
+      if(btn) {
+        btn.innerText = oldText || '🌐 Salvar no site';
+        btn.disabled = false;
+      }
+      alert('Salvo apenas no navegador. Supabase não carregou.');
+      return;
+    }
+
+    try{
+      const { error } = await supabaseClient
+        .from('calendarios')
+        .upsert({
+          id: window.CALENDAR_ID,
+          nome: window.CALENDAR_NAME,
+          dados: payload
+        }, { onConflict: 'id' });
+
+      if(error){
+        console.error('Erro Supabase:', error);
+        alert('Erro ao salvar no Supabase: ' + (error.message || 'verifique permissões/RLS'));
         return;
       }
+
+      alert('Salvo no site!');
     }catch(e){
-      console.warn(e);
+      console.error('Erro inesperado:', e);
+      alert('Erro inesperado ao salvar no site.');
+    }finally{
+      if(btn) {
+        btn.innerText = oldText || '🌐 Salvar no site';
+        btn.disabled = false;
+      }
     }
   }
 
-  const local = loadLocal();
-  if(local){
-    applySiteData(local);
+  async function loadSiteData(){
+    if(supabaseClient){
+      try{
+        const { data, error } = await supabaseClient
+          .from('calendarios')
+          .select('dados')
+          .eq('id', window.CALENDAR_ID)
+          .maybeSingle();
+
+        if(error){
+          console.warn('Erro ao carregar Supabase:', error);
+        }
+
+        if(data && data.dados){
+          applySiteData(data.dados);
+          return;
+        }
+      }catch(e){
+        console.warn('Falha ao carregar Supabase:', e);
+      }
+    }
+
+    const local = loadLocalBackup();
+    if(local) applySiteData(local);
   }
-}
 
-window.saveSitedata = saveSiteData;
+  window.getSiteData = getSiteData;
+  window.applySiteData = applySiteData;
+  window.saveSiteData = saveSiteData;
+  window.saveSitedata = saveSiteData;
+  window.loadSiteData = loadSiteData;
 
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadSiteData();
-});
+  document.addEventListener('DOMContentLoaded', function(){
+    loadSiteData();
+  });
+})();
 </script>
 
 </body></html>
