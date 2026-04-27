@@ -1672,4 +1672,57 @@ document.querySelectorAll('.month-block').forEach(el=>observer.observe(el));
 })();
 </script>
 
+
+<script>
+/* =========================================================
+   FIX EXCLUIR POST PELO DOM
+   Mantém compatível com deletePostByKey(monthIndex, day)
+========================================================= */
+(function(){
+  function findCardByMonthDay(monthIndex, day){
+    const month = document.getElementById('month-' + monthIndex);
+    if(!month) return null;
+
+    const dayEl = month.querySelector('.cal-day[data-day="' + day + '"]');
+    if(!dayEl) return null;
+
+    return dayEl.querySelector('.post-card');
+  }
+
+  function createAddButton(monthIndex, day){
+    const btn = document.createElement('button');
+    btn.className = 'add-post-btn';
+    btn.setAttribute('onclick', 'openModal(' + monthIndex + ',' + day + ',true)');
+    btn.innerHTML = '＋ post';
+    return btn;
+  }
+
+  window.deletePostByKey = function(monthIndex, day){
+    const card = findCardByMonthDay(monthIndex, day);
+    if(!card){
+      alert('Não encontrei o post para excluir.');
+      return;
+    }
+
+    const ok = confirm('Excluir este post?');
+    if(!ok) return;
+
+    const dayEl = card.closest('.cal-day');
+    card.remove();
+
+    if(dayEl && !dayEl.querySelector('.add-post-btn')){
+      dayEl.appendChild(createAddButton(monthIndex, day));
+    }
+
+    if(typeof updateStats === 'function'){
+      try{ updateStats(); }catch(e){ console.warn(e); }
+    }
+
+    if(typeof saveSiteData === 'function'){
+      try{ saveSiteData(); }catch(e){ console.warn(e); }
+    }
+  };
+})();
+</script>
+
 </body></html>
